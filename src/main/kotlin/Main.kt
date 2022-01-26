@@ -3,9 +3,11 @@ import javafx.collections.FXCollections
 import javafx.collections.ObservableList
 import javafx.event.EventHandler
 import javafx.geometry.Pos
+import javafx.scene.Parent
 import javafx.scene.control.TableColumn
 import javafx.scene.control.ToggleGroup
 import javafx.scene.text.FontWeight
+import javafx.stage.StageStyle
 import tornadofx.*
 import java.time.LocalDate
 
@@ -390,7 +392,7 @@ class ProductView : View() {
 					var delivery = toggleGroupDelivery.selectedToggle.toString()
 					if (delivery.subSequence(46, delivery.length - 1).equals("DRONE"))
 						if (controller.isHeavy()) {
-							//TODO
+							find<MyFragment>().openModal(stageStyle = StageStyle.UTILITY)
 						}
 					controller.addPaymentToDatabase(toggleGroup.selectedToggle.toString())
 					controller.addOrder()
@@ -405,6 +407,9 @@ class ProductView : View() {
 	}
 }
 
+class MyFragment: Fragment() {
+	override val root = label("Warning: These order is too heavy for drone delivery. Please choose another delivery option!")
+}
 
 class PayPalView : View() {
 	override val root = vbox {
