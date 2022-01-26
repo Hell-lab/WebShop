@@ -1,3 +1,7 @@
+import javafx.scene.layout.Priority
+import tornadofx.getProperty
+import tornadofx.property
+
 data class Order(
 	var id: Int = -1,
 	val products: List<Product>,
@@ -9,22 +13,22 @@ data class Order(
 
 class Payment(
 	var id: Int = -1,
-	val paymentMethod: PaymentMethod
+	var paymentMethod: PaymentMethod = PaymentMethod.PAYPAL
 )
 
 class Delivery(
 	var id: Int = -1,
-	val address: String,
-	val type: DeliveryType,
-	val description: String)
+	var address: String = "Test",
+	var type: DeliveryType = DeliveryType.WORMHOLE,
+	var description: String = "Test")
 
 class Customer(
 	var id: Int = -1,
-	val firstName: String,
-	val lastName: String,
-	val address: String,
-	val mailAddress: String,
-	val phoneNumber: String
+	var firstName: String = "Test",
+	var lastName: String = "Test",
+	var address: String = "Test",
+	var mailAddress: String = "Test",
+	var phoneNumber: String = "Test"
 )
 
 enum class DeliveryType {
@@ -39,39 +43,70 @@ enum class OrderStatus {
 	CREATING, PAID, WAITING, SCHEDULED, PREPARING, SHIPPING, DELIVERED, NOT_DELIVERABLE
 }
 
-data class Product(var id: Int = -1, val name: String, val weight: Int) {
+data class Product(var id: Int = -1, val name: String, val weight: Int, val recipe: String, val priority: Int, val price: Float) {
+
+	var amount by property<Int>()
+	fun amountProperty() = getProperty(Product::amount)
+
+	init {
+		amount = 0
+	}
 
 	companion object {
-		private val cheeseSandwich = Product(
+		private val coldCheeseSandwich = Product(
 			-1,
-			"Cheese Sandwich",
-			250
+			"cold Cheese Sandwich",
+			250,
+			"assemble",
+			1,
+			2.5F
+		)
+		private val hotCheeseSandwich = Product(
+			-1,
+			"hot Cheese Sandwich",
+			250,
+			"assemble:bake",
+			2,
+			3.0F
 		)
 		private val hamSandwich = Product(
 			-1,
 			"Ham Sandwich",
-			300
+			300,
+			"assemble",
+			1,
+			3.5F
 		)
 		private val potatoSandwich = Product(
 			-1,
 			"Potato Sandwich",
-			250
+			250,
+			"cook:assemble",
+			1,
+			3.0F
 		)
 		private val veggieSandwich = Product(
 			-1,
 			"Veggie Sandwich",
-			150
+			150,
+			"assemble",
+			1,
+			4.0F
 		)
 		private val clubSandwich = Product(
 			-1,
 			"Club Sandwich",
-			400
+			400,
+			"assemble:bake:assemble",
+			2,
+			5.00F
 		)
 
 
 		fun getProducts(): List<Product> {
 			return listOf(
-				cheeseSandwich,
+				coldCheeseSandwich,
+				hotCheeseSandwich,
 				hamSandwich,
 				potatoSandwich,
 				veggieSandwich,

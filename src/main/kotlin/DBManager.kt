@@ -22,6 +22,7 @@ class DBManager {
 			dbConnection!!.close()
 			println("Closed connection.")
 		}
+		dbConnection = null
 	}
 
 	fun initializeTables() {
@@ -110,7 +111,10 @@ class DBManager {
 				"CREATE TABLE $PRODUCTS_TABLE_NAME ("
 						+ "$PRODUCT_ID INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), "
 						+ "$PRODUCT_NAME VARCHAR(255), "
-						+ "$PRODUCT_WEIGHT INT) "
+						+ "$PRODUCT_WEIGHT INT, "
+						+ "$PRODUCT_RECIPE VARCHAR(255), "
+						+ "$PRODUCT_PRIORITY INT, "
+						+ "$PRODUCT_PRICE FLOAT) "
 			)
 		}
 
@@ -118,6 +122,7 @@ class DBManager {
 		dbConnection!!.createStatement().use { statement ->
 			statement.execute(
 				"CREATE TABLE $ORDER_PRODUCTS_TABLE_NAME ("
+						+ "$PRODUCT_AMOUNT INT,"
 						+ "$ORDER_ID INT, "
 						+ "$PRODUCT_ID INT, "
 						+ "FOREIGN KEY ($PRODUCT_ID) REFERENCES $PRODUCTS_TABLE_NAME($PRODUCT_ID), "
@@ -136,11 +141,14 @@ class DBManager {
 		println(" - Adding product \"${product.name}\" to database.")
 		try {
 			val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
-				"INSERT INTO $PRODUCTS_TABLE_NAME ($PRODUCT_NAME, $PRODUCT_WEIGHT) VALUES(?,?)",
+				"INSERT INTO $PRODUCTS_TABLE_NAME ($PRODUCT_NAME, $PRODUCT_WEIGHT, $PRODUCT_RECIPE, $PRODUCT_PRIORITY, $PRODUCT_PRICE ) VALUES(?,?,?,?,?)",
 				Statement.RETURN_GENERATED_KEYS
 			)
 			insertStatement.setString(1, product.name)
 			insertStatement.setInt(2, product.weight)
+			insertStatement.setString(3, product.recipe)
+			insertStatement.setInt(4, product.priority)
+			insertStatement.setFloat(5, product.price)
 
 			val affectedRows = insertStatement.executeUpdate()
 			if (affectedRows != 1) {
@@ -186,7 +194,7 @@ class DBManager {
 		return order
 	}
 
-	fun addCustomer(customer: Customer) {
+	fun addCustomer(customer: Customer) : Int {
 		if (verbose) println(" - Adding customer to database.")
 		try {
 			val insertStatement: PreparedStatement = dbConnection!!.prepareStatement(
@@ -212,6 +220,7 @@ class DBManager {
 			throw handleError("Failed to add customer to database.", e)
 		}
 		if (verbose) println(" - com.systemsengineering.webshop.Customer has ID ${customer.id}")
+		return customer.id
 	}
 
 	fun addPayment(payment: Payment) {
@@ -310,6 +319,100 @@ class DBManager {
 		}
 	}
 
+	fun getOrderFromCustomer(customerID: Int): List<Order> {
+		val orders = ArrayList<Order>()
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT $ORDER_ID, $CUSTOMER_ID, $PAYMENT_ID, $DELIVERY_ID, $ORDER_STATUS FROM $ORDERS_TABLE_NAME WHERE $CUSTOMER_ID = $customerID")
+			while (resultSet.next()) {
+				val orderID = resultSet.getInt("$ORDER_ID")
+				val customerID = resultSet.getInt("$CUSTOMER_ID")
+				val paymentID = resultSet.getInt("$PAYMENT_ID")
+				val deliveryID = resultSet.getInt("$DELIVERY_ID")
+				val status = resultSet.getString("$ORDER_STATUS")
+				val products = getProductsToOrder(orderID)
+				orders.add(Order(orderID, products, OrderStatus.valueOf(status), getCustomer(customerID), getDelivery(deliveryID), getPayment(paymentID)))
+			}
+		}
+		return orders.toList()
+	}
+
+	fun getProductsToOrder(orderID: Int): List<Product> {
+		val products = ArrayList<Product>()
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT $PRODUCT_ID, $PRODUCT_AMOUNT FROM $ORDER_PRODUCTS_TABLE_NAME WHERE $ORDER_ID = $orderID")
+			while (resultSet.next()) {
+				var productID = resultSet.getInt("$PRODUCT_ID")
+				var productAmount = resultSet.getInt("$PRODUCT_AMOUNT")
+				val resultSetProduct = statement.executeQuery(
+					"SELECT $PRODUCT_ID, $PRODUCT_NAME, $PRODUCT_WEIGHT, $PRODUCT_RECIPE, $PRODUCT_PRIORITY, $PRODUCT_PRICE FROM $PRODUCTS_TABLE_NAME WHERE $PRODUCT_ID =  $productID)")
+				val id = resultSetProduct.getInt("$PRODUCT_ID")
+				val name = resultSetProduct.getString("$PRODUCT_NAME")
+				val weight = resultSetProduct.getInt("$PRODUCT_WEIGHT")
+				val recipe = resultSetProduct.getString("$PRODUCT_RECIPE")
+				val priority = resultSetProduct.getInt("$PRODUCT_PRIORITY")
+				val price = resultSetProduct.getFloat("$PRODUCT_PRICE")
+				val product = Product(id, name, weight, recipe, priority, price)
+				product.amount = productAmount
+				products.add(product)
+			}
+		}
+		return products.toList()
+	}
+
+	fun getProducts() : List<Product> {
+		val products = ArrayList<Product>()
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT $PRODUCT_ID, $PRODUCT_NAME, $PRODUCT_WEIGHT, $PRODUCT_RECIPE, $PRODUCT_PRIORITY, $PRODUCT_PRICE FROM $PRODUCTS_TABLE_NAME")
+			while (resultSet.next()) {
+				val id = resultSet.getInt("$PRODUCT_ID")
+				val name = resultSet.getString("$PRODUCT_NAME")
+				val weight = resultSet.getInt("$PRODUCT_WEIGHT")
+				val recipe = resultSet.getString("$PRODUCT_RECIPE")
+				val priority = resultSet.getInt("$PRODUCT_PRIORITY")
+				val price = resultSet.getFloat("$PRODUCT_PRICE")
+				products.add(Product(id, name, weight, recipe, priority, price))
+			}
+		}
+		return products.toList()
+	}
+
+	fun getCustomer(customerID: Int): Customer {
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT $CUSTOMER_FIRST_NAME, $CUSTOMER_LAST_NAME, $CUSTOMER_ADDRESS, $CUSTOMER_MAIL_ADDRESS, $CUSTOMER_PHONE_NUMBER FROM $CUSTOMERS_TABLE_NAME WHERE $CUSTOMER_ID = $customerID")
+			val firstName = resultSet.getString("$CUSTOMER_FIRST_NAME")
+			val lastName = resultSet.getString("$CUSTOMER_LAST_NAME")
+			val address = resultSet.getString("$CUSTOMER_ADDRESS")
+			val mail = resultSet.getString("$CUSTOMER_MAIL_ADDRESS")
+			val phone = resultSet.getString("$CUSTOMER_PHONE_NUMBER")
+			return Customer(customerID, firstName, lastName, address, mail, phone)
+		}
+	}
+
+	fun getPayment(paymentID: Int): Payment {
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT $PAYMENT_METHOD FROM $PAYMENTS_TABLE_NAME WHERE $PAYMENT_ID = $paymentID")
+			val paymentMethod = resultSet.getString("$PAYMENT_METHOD")
+			return Payment(paymentID, PaymentMethod.valueOf(paymentMethod))
+		}
+	}
+
+	fun getDelivery(deliveryID: Int) : Delivery {
+		dbConnection!!.createStatement().use { statement ->
+			val resultSet =
+				statement.executeQuery("SELECT  $DELIVERY_ADDRESS, $DELIVERY_TYPE, $DELIVERY_DESCRIPTION FROM $DELIVERIES_TABLE_NAME WHERE $DELIVERY_ID = $deliveryID")
+			val deliveryAddress = resultSet.getString("$DELIVERY_ADDRESS")
+			val deliveryType = resultSet.getString("$DELIVERY_TYPE")
+			val deliveryDescription= resultSet.getString("$DELIVERY_DESCRIPTION")
+			return Delivery(deliveryID, deliveryAddress, DeliveryType.valueOf(deliveryType), deliveryDescription)
+		}
+	}
+
+
 	fun startTransaction() {
 		dbConnection!!.autoCommit = false
 	}
@@ -367,6 +470,10 @@ class DBManager {
 		private const val PRODUCT_ID = "PRODUCT_ID"
 		private const val PRODUCT_NAME = "PRODUCT_NAME"
 		private const val PRODUCT_WEIGHT = "PRODUCT_WEIGHT"
+		private const val PRODUCT_RECIPE = "PRODUCT_RECIPE"
+		private const val PRODUCT_PRIORITY = "PRODUCT_PRIORITY"
+		private const val PRODUCT_PRICE = "PRODUCT_PRICE"
+		private const val PRODUCT_AMOUNT = "PRODUCT_AMOUNT"
 
 		private const val ORDER_PRODUCTS_TABLE_NAME = "ORDER_PRODUCTS"
 
