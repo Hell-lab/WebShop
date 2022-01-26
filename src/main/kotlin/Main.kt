@@ -10,6 +10,7 @@ import javafx.scene.text.FontWeight
 import javafx.stage.StageStyle
 import tornadofx.*
 import java.time.LocalDate
+import java.time.LocalTime
 
 class Main : App(Start::class)
 
@@ -106,7 +107,7 @@ class Status : View() {
 				}
 				action {
 					replaceWith(
-						ProductView::class,
+						Start::class,
 						ViewTransition.Slide(0.3.seconds, ViewTransition.Direction.LEFT)
 					)
 				}
@@ -581,6 +582,7 @@ class MyController : Controller() {
 	var payment= Payment()
 	val db = DBManager()
 	var customerID = 0
+	var orderID = 0
 
 	fun start() {
 		db.openConnection()
@@ -614,6 +616,8 @@ class MyController : Controller() {
 		val method = method.subSequence(46, method.length - 1).toString()
 		payment.paymentMethod = PaymentMethod.valueOf(method)
 		db.addPayment(payment)
+		db.updateOrderStatus(orderID, OrderStatus.PAID)
+		db.updateOrderETA(orderID, LocalTime.now().plusMinutes(15))
 	}
 
 	fun addDeliveryToDatabase(address: String, type: String, description: String) {
@@ -625,7 +629,7 @@ class MyController : Controller() {
 	}
 
 	fun addOrder() {
-		db.addOrder(Order(products = products, customer = customer, delivery = delivery, payment = payment))
+		orderID = db.addOrder(Order(products = products, customer = customer, delivery = delivery, payment = payment)).id
 	}
 
 	fun isHeavy(): Boolean {
